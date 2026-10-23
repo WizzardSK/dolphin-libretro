@@ -1,0 +1,31 @@
+name: Test build Linux arm64 (#520)
+
+on:
+  push:
+    branches: [test-520-arm64]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04-arm
+    steps:
+    - name: Install dependencies
+      run: |
+        sudo apt update
+        sudo apt install -y cmake ninja-build pkg-config \
+          libasound2-dev \
+          libx11-dev libxi-dev libxrandr-dev libudev-dev libevdev-dev \
+          libegl1-mesa-dev libgl1-mesa-dev \
+          libcurl4-openssl-dev zlib1g-dev
+    - uses: actions/checkout@v6
+      with:
+        submodules: recursive
+    - name: Build
+      run: |
+        mkdir -p build && cd build
+        cmake .. -G Ninja -DLIBRETRO=ON -DCMAKE_BUILD_TYPE=Release
+        ninja
+        find . -name dolphin_libretro.so -exec cp {} .. \;
+    - uses: actions/upload-artifact@v4
+      with:
+        name: dolphin_libretro_linux_arm64
+        path: dolphin_libretro.so
