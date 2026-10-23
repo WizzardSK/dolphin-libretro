@@ -518,6 +518,8 @@ void retro_run(void)
   {
     Core::DoFrameStep(system);
     system.GetFifo().RunGpuLoop();
+    if (SoundStream* sound_stream = system.GetSoundStream())
+      sound_stream->NewField();
   }
   else
   {

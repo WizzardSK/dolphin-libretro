@@ -1002,11 +1002,13 @@ void Callback_NewField(Core::System& system)
 
   AchievementManager::GetInstance().DoFrame();
 #ifdef __LIBRETRO__
+  // frontend waiting on audio here holds the thread while
+  // the frame is presented. In dual core mode retro_run() pushes it once the GPU loop has
+  // stopped: from the CPU thread it would reach the frontend after retro_run() returned,
+  // even while the content is being closed.
   if (system.IsDualCoreMode())
     system.GetFifo().StopGpuLoop();
-  // frontend waiting on audio here holds the thread while
-  // the frame is presented.
-  if (SoundStream* sound_stream = system.GetSoundStream())
+  else if (SoundStream* sound_stream = system.GetSoundStream())
     sound_stream->NewField();
 #endif
 }
