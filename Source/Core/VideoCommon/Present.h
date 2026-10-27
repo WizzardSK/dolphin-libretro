@@ -19,6 +19,7 @@
 class AbstractTexture;
 struct SurfaceInfo;
 enum class DolphinKey;
+enum class AspectMode : int;
 
 namespace VideoCommon
 {
