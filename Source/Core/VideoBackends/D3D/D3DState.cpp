@@ -304,11 +304,40 @@ void StateManager::SyncComputeBindings()
   }
 }
 #ifdef __LIBRETRO__
+// Everything Apply() binds, bound again after the frontend drew with the
+// shared context. Its shader passes bind their uniform and push constant
+// buffers at slots 0 and 1 of both stages; the vertex shader's slot 1 and the
+// custom constants' slot 2 were left with the frontend's buffers, which
+// Apply() then never replaced, as m_current said they were ours: the picture
+// went black with a shader preset, and stayed black after it was turned off
+// (D3D11).
 void StateManager::Restore()
 {
-  D3D::context->PSSetConstantBuffers(0, m_pending.pixelConstants[1] ? 2 : 1,
-                                     m_pending.pixelConstants.data());
+  if (m_pending.framebuffer)
+  {
+    if (g_backend_info.bSupportsBBox)
+    {
+      D3D::context->OMSetRenderTargetsAndUnorderedAccessViews(
+          m_pending.framebuffer->GetNumRTVs(),
+          m_pending.use_integer_rtv ? m_pending.framebuffer->GetIntegerRTVArray() :
+                                      m_pending.framebuffer->GetRTVArray(),
+          m_pending.framebuffer->GetDSV(), m_pending.framebuffer->GetNumRTVs() + 1, 1,
+          &m_pending.uav, nullptr);
+    }
+    else
+    {
+      D3D::context->OMSetRenderTargets(m_pending.framebuffer->GetNumRTVs(),
+                                       m_pending.use_integer_rtv ?
+                                           m_pending.framebuffer->GetIntegerRTVArray() :
+                                           m_pending.framebuffer->GetRTVArray(),
+                                       m_pending.framebuffer->GetDSV());
+    }
+  }
+  D3D::context->PSSetConstantBuffers(0, 2, m_pending.pixelConstants.data());
   D3D::context->VSSetConstantBuffers(0, 1, &m_pending.vertexConstants);
+  D3D::context->VSSetConstantBuffers(1, 1, &m_pending.vertexConstants);
+  D3D::context->PSSetConstantBuffers(2, 1, &m_pending.customConstants);
+  D3D::context->VSSetConstantBuffers(2, 1, &m_pending.customConstants);
   D3D::context->GSSetConstantBuffers(0, 1, &m_pending.geometryConstants);
   D3D::context->IASetVertexBuffers(0, 1, &m_pending.vertexBuffer, &m_pending.vertexBufferStride,
                                    &m_pending.vertexBufferOffset);
