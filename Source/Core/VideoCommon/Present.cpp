@@ -506,11 +506,7 @@ float Presenter::AdjustAspectRatioForCustomCrop(float input_aspect_ratio) const
 
 float Presenter::CalculateDrawAspectRatio(bool allow_stretch) const
 {
-  return CalculateDrawAspectRatio(g_ActiveConfig.aspect_mode, allow_stretch);
-}
-
-float Presenter::CalculateDrawAspectRatio(AspectMode aspect_mode, bool allow_stretch) const
-{
+  auto aspect_mode = g_ActiveConfig.aspect_mode;
   float resulting_aspect_ratio;
 
   if (!allow_stretch && aspect_mode == AspectMode::Stretch)
