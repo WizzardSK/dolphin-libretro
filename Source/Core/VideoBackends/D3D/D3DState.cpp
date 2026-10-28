@@ -304,13 +304,9 @@ void StateManager::SyncComputeBindings()
   }
 }
 #ifdef __LIBRETRO__
-// Everything Apply() binds, bound again after the frontend drew with the
-// shared context. Its shader passes bind their uniform and push constant
-// buffers at slots 0 and 1 of both stages; the vertex shader's slot 1 and the
-// custom constants' slot 2 were left with the frontend's buffers, which
-// Apply() then never replaced, as m_current said they were ours: the picture
-// went black with a shader preset, and stayed black after it was turned off
-// (D3D11).
+// Rebinds everything Apply() binds after the frontend drew with the shared
+// context: its shader passes overwrite constant buffer slots that m_current
+// still records as ours, which turned the picture black with a preset.
 void StateManager::Restore()
 {
   if (m_pending.framebuffer)
