@@ -1,5 +1,4 @@
 
-#include <cmath>
 #include <cstdint>
 #include <libretro.h>
 #include <string>
@@ -46,7 +45,6 @@
 #include "VideoCommon/AsyncRequests.h"
 #include "VideoCommon/Fifo.h"
 #include "VideoCommon/OnScreenDisplay.h"
-#include "VideoCommon/Present.h"
 #include "VideoCommon/TextureConfig.h"
 #include "VideoCommon/VideoCommon.h"
 #include "VideoCommon/VideoConfig.h"
@@ -77,8 +75,6 @@ namespace Libretro
 {
 extern retro_environment_t environ_cb;
 static bool widescreen;
-// The aspect ratio last reported to the frontend (FrameAspect)
-static float frame_aspect;
 // Whether the geometry last reported to the frontend was sized for VR
 static bool vr_frame;
 double g_core_refresh_rate{0};
@@ -87,34 +83,6 @@ double g_core_refresh_rate{0};
 static bool s_refresh_rate_settled = false;
 extern void reload_cheats_from_ini();
 extern unsigned msg_interface_version;
-
-// The Aspect Ratio option: Dolphin itself always stretches its picture over
-// the whole frame (ApplyAspectMode), and the frontend is given the aspect
-// ratio of the option's mode as Dolphin works it out for the game's picture.
-// With Dolphin fitting the picture into the frame by the mode, the frontend
-// scaled the frame, bars and all, to 4:3 or 16:9 once more, and every mode
-// but Stretch came out squeezed or stretched. Stretch (and VR, whose eyes are
-// laid out by their own settings) gives 4:3 or 16:9 by whether the game runs
-// widescreen, as before.
-static float FrameAspect()
-{
-  const auto aspect_mode = static_cast<AspectMode>(Options::GetCached<int>(
-      Options::gfx_settings::ASPECT_RATIO, static_cast<int>(AspectMode::Stretch)));
-  if (aspect_mode == AspectMode::Stretch || VR::IsEnabled() || !g_presenter || !g_widescreen)
-    return widescreen ? 16.0f / 9.0f : 4.0f / 3.0f;
-  const float aspect = g_presenter->CalculateDrawAspectRatio(aspect_mode, false);
-  return aspect > 0.0f ? aspect : (widescreen ? 16.0f / 9.0f : 4.0f / 3.0f);
-}
-
-// The Aspect Ratio option into Dolphin's settings: Stretch, unless VR lays
-// out the eyes
-static void ApplyAspectMode()
-{
-  if (VR::IsEnabled())
-    VR::ApplyConfig();
-  else
-    Config::SetCurrent(Config::GFX_ASPECT_RATIO, AspectMode::Stretch);
-}
 }  // namespace Libretro
 
 extern "C" {
@@ -229,7 +197,15 @@ void retro_get_system_av_info(retro_system_av_info* info)
   else if (Core::System::GetInstance().IsWii())
     Libretro::widescreen = Config::Get(Config::SYSCONF_WIDESCREEN);
 
-  info->geometry.aspect_ratio = Libretro::frame_aspect = Libretro::FrameAspect();
+  // Outside Stretch, Dolphin letterboxes the picture into the frame itself,
+  // so the frontend shows the frame as it is
+  const auto aspect_mode = static_cast<AspectMode>(Libretro::Options::GetCached<int>(
+      Libretro::Options::gfx_settings::ASPECT_RATIO, static_cast<int>(AspectMode::Stretch)));
+  if (aspect_mode != AspectMode::Stretch && !Libretro::VR::IsEnabled())
+    info->geometry.aspect_ratio =
+        static_cast<float>(info->geometry.base_width) / info->geometry.base_height;
+  else
+    info->geometry.aspect_ratio = Libretro::widescreen ? 16.0 / 9.0 : 4.0 / 3.0;
 
   // The packed frame holds both eyes side by side
   Libretro::vr_frame = Libretro::VR::IsEnabled();
@@ -396,11 +372,8 @@ void retro_run(void)
     Libretro::environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &info);
   }
 
-  // The game turning widescreen, or the mode's aspect ratio following the
-  // game's (Auto, Raw, Custom by the VI's)
-  if ((g_widescreen &&
-       Libretro::widescreen != (g_widescreen->IsGameWidescreen() || g_Config.bWidescreenHack)) ||
-      std::fabs(Libretro::FrameAspect() - Libretro::frame_aspect) > 0.001f)
+  if (g_widescreen &&
+      Libretro::widescreen != (g_widescreen->IsGameWidescreen() || g_Config.bWidescreenHack))
   {
     retro_system_av_info info;
     retro_get_system_av_info(&info);
@@ -465,7 +438,16 @@ void retro_run(void)
   if (Libretro::Options::IsUpdated(Libretro::Options::gfx_settings::ASPECT_RATIO))
   {
     // VR sets the aspect ratio together with its stereoscopy settings
-    Libretro::ApplyAspectMode();
+    if (Libretro::VR::IsEnabled())
+      Libretro::VR::ApplyConfig();
+    else
+      Config::SetCurrent(
+        Config::GFX_ASPECT_RATIO, static_cast<AspectMode>(
+          Libretro::GetOption<int>(
+            Libretro::Options::gfx_settings::ASPECT_RATIO, static_cast<int>(AspectMode::Stretch)
+          )
+        )
+      );
     retro_system_av_info info;
     retro_get_system_av_info(&info);
     Libretro::environ_cb(RETRO_ENVIRONMENT_SET_GEOMETRY, &info);

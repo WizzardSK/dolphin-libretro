@@ -71,9 +71,7 @@ void ApplyConfig()
   const bool enabled = mode != Mode::Off;
 
   // The headset's field of view must cover each eye's whole half of the frame.
-  // Without VR, Dolphin stretches over the frame and the frontend is given
-  // the option's aspect ratio (Main.cpp, FrameAspect).
-  const AspectMode aspect = mode == Mode::Immersive || !enabled ?
+  const AspectMode aspect = mode == Mode::Immersive ?
     AspectMode::Stretch :
     static_cast<AspectMode>(Libretro::GetOption<int>(
       Options::gfx_settings::ASPECT_RATIO, static_cast<int>(AspectMode::Stretch)));
